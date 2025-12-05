@@ -7,7 +7,7 @@ class DBConfig:
     HOST = os.getenv("DB_HOST", "localhost")
     PORT = os.getenv("DB_PORT", "5432")
     USER = os.getenv("DB_USER", "postgres")
-    PASSWORD = os.getenv("DB_PASSWORD", "password")
+    PASSWORD = os.getenv("DB_PASSWORD", "postgres")
     NAME = os.getenv("DB_NAME", "hospital_db")
 
     @classmethod

@@ -24,8 +24,7 @@ class BaseAgent(ABC):
     # -------------------------------------------------------------------------
     # MESSAGE SENDING
     # -------------------------------------------------------------------------
-    def send_message(self, target_agent: str, action: str, data: Dict):
-        """Pushes a message into the orchestrator queue."""
+    def send_message(self, target_agent: str, action: str, data: Dict, reply_to: str = None):
         message = {
             "from": self.agent_id,
             "to": target_agent,
@@ -33,10 +32,14 @@ class BaseAgent(ABC):
             "data": data,
             "timestamp": datetime.now().isoformat()
         }
+        if reply_to:
+            message["reply_to"] = reply_to
+
         if self.event_queue:
             self.event_queue.push(message)
         else:
             print("[WARNING] Event queue not set on", self.agent_id)
+
 
     # -------------------------------------------------------------------------
     # PERMISSIONS

@@ -1,5 +1,5 @@
 # agents/access_control_agent.py
-from base_agent import BaseAgent
+from agents.base_agent import BaseAgent
 from typing import Dict, Any, List
 from datetime import datetime
 

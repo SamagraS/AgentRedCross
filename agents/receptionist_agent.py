@@ -3,7 +3,6 @@ from typing import Dict, Any
 from datetime import datetime
 from agents.base_agent import BaseAgent
 
-
 class ReceptionistAgent(BaseAgent):
     """
     Handles patient intake:
@@ -23,12 +22,25 @@ class ReceptionistAgent(BaseAgent):
                 "schedule_doctor"
             ]
         )
+        self.last_patient_id = None
 
     # -------------------------------------------------------------------------
     # MESSAGE ROUTER
     # -------------------------------------------------------------------------
     def process_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
         action = message.get("action")
+
+        # Handle asynchronous reply from EHR Agent
+        if action == "response":
+            data = message.get("data", {})
+            if "patient_id" in data:
+                self.last_patient_id = data["patient_id"]
+                print(f"[Receptionist] ✔ Received real patient_id: {self.last_patient_id}")
+
+                # Continue workflow after receiving UUID
+                self._finalize_intake(self.last_patient_id)
+
+            return {"status": "ok"}
 
         if action == "patient_intake":
             return self.handle_patient_intake(message["data"])
@@ -48,11 +60,19 @@ class ReceptionistAgent(BaseAgent):
         self.send_message(
             target_agent="ehr_agent",
             action="create_patient",
-            data=patient_data
+            data=patient_data,
+            reply_to=self.agent_id
         )
 
-        # Patient ID is added by EHR Agent, orchestrator returns result
-        patient_id = patient_data.get("patient_id", "PENDING")
+        # Wait for EHR to reply with patient_id
+        print("[Receptionist] Waiting for patient_id from EHR...")
+
+        return {"status": "processing", "message": "Waiting for EHR to return patient_id"}
+
+    # -------------------------------------------------------------------------
+    # FINALIZE INTAKE AFTER RECEIVING PATIENT UUID
+    # -------------------------------------------------------------------------
+    def _finalize_intake(self, patient_id):
 
         # 3. Audit creation
         self.audit_log(
@@ -62,12 +82,11 @@ class ReceptionistAgent(BaseAgent):
         )
 
         # 4. Schedule doctor
-        if self.check_permission("schedule_doctor"):
-            self.send_message(
-                target_agent="doctor_scheduler",
-                action="schedule_next_available",
-                data={"patient_id": patient_id}
-            )
+        self.send_message(
+            target_agent="doctor_scheduler",
+            action="schedule_next_available",
+            data={"patient_id": patient_id}
+        )
 
         # 5. Update appointment in EHR
         self.send_message(
@@ -79,15 +98,9 @@ class ReceptionistAgent(BaseAgent):
             }
         )
 
-        # Audit appointment
+        # Audit appointment scheduling
         self.audit_log(
             action="doctor_scheduled",
             patient_id=patient_id,
             details="Appointment scheduled within 15 minutes."
         )
-
-        return {
-            "status": "success",
-            "message": "Patient registered and routed to doctor",
-            "patient_id": patient_id
-        }

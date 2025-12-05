@@ -1,5 +1,5 @@
 # doctor_agent.py
-from base_agent import BaseAgent
+from agents.base_agent import BaseAgent
 from typing import Dict, Any
 from datetime import datetime
 
@@ -43,62 +43,72 @@ class DoctorAgent(BaseAgent):
     # MESSAGE PROCESSOR (Required by BaseAgent)
     # =========================================================================
     def process_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        """Route incoming messages to appropriate handlers."""
-        
+
         action = message.get('action')
         data = message.get('data', {})
-        
-        # Route to appropriate handler
+
+        # ---------------- ROUTING ----------------
         if action == 'assign_patient':
             return self.assign_patient(data)
-        
+
         elif action == 'retrieve_patient':
             return self.retrieve_patient_record(data.get('patient_id'))
-        
+
         elif action == 'write_diagnosis':
             return self.write_diagnosis(
                 data.get('patient_id'),
                 data.get('diagnosis'),
                 data.get('notes')
             )
-        
+
         elif action == 'prescribe_medication':
             return self.prescribe_medication(
                 data.get('patient_id'),
                 data.get('medications')
             )
-        
+
         elif action == 'order_lab_test':
             return self.order_lab_test(
                 data.get('patient_id'),
                 data.get('test_type'),
                 data.get('priority', 'routine')
             )
-        
+
         elif action == 'order_imaging':
             return self.order_imaging(
                 data.get('patient_id'),
                 data.get('imaging_type'),
                 data.get('priority', 'routine')
             )
-        
+
         elif action == 'discharge_patient':
             return self.discharge_patient(
                 data.get('patient_id'),
                 data.get('discharge_notes')
             )
-        
+
         elif action == 'lab_result_ready':
             return self.handle_lab_result(data)
-        
+
         elif action == 'imaging_result_ready':
             return self.handle_imaging_result(data)
-        
-        else:
-            return {
-                'status': 'error',
-                'message': f'Unknown action: {action}'
-            }
+
+        elif action == "process_lab_request":
+            # forward to lab agent (new correct block)
+            self.send_message(
+                target_agent="lab_agent",
+                action="process_lab_request",
+                data=data
+            )
+            return {"status": "forwarded"}
+
+        # ---------------- UNKNOWN ACTION ----------------
+        return {
+            'status': 'error',
+            'message': f'Unknown action: {action}'
+        }
+
+
 
 
     # =========================================================================
@@ -146,19 +156,21 @@ class DoctorAgent(BaseAgent):
         
         # Step 1: Request permission from Access Control Agent
         self.send_message(
-            target_agent='access_control',
+            target_agent='access_control_agent',
             action='validate_access',
             data={
-                'requesting_agent': self.agent_id,
-                'action': 'retrieve_patient_record',
-                'patient_id': patient_id,
+                'requested_action': 'retrieve_patient',  # matches ROLE_PERMISSIONS['doctor']['actions']
                 'fields': [
-                    'patient_id', 'name', 'dob', 'diagnosis', 
-                    'medications', 'lab_results', 'imaging_results',
-                    'treatment_notes', 'allergies', 'medical_history'
-                ]
+                    'patient_id', 'name', 'dob',
+                    'diagnosis', 'medications',
+                    'lab_results', 'imaging_results',
+                    'notes',  # not 'treatment_notes'
+                    'allergies', 'medical_history'
+                ],
+                'patient_id': patient_id
             }
         )
+
         
         # Step 2: Request from EHR Agent (via Privacy Guard filtering)
         self.send_message(

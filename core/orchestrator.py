@@ -59,10 +59,8 @@ class Orchestrator:
         3. If recipient missing, write a warning and return an error envelope.
         """
         # Fast-path: let the queue attempt a direct route to a registered subscriber
-        handled = self.queue.route_if_possible(message)
-        if handled:
-            # Subscriber consumed message (they can send follow-ups to the queue).
-            return None
+        handled = False  # disable fast-path
+
 
         target = message.get("to")
         if not target:

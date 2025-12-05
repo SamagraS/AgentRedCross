@@ -1,5 +1,5 @@
 # agents/audit_logger_agent.py
-from base_agent import BaseAgent
+from agents.base_agent import BaseAgent
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from psycopg2.extras import RealDictCursor
